@@ -10,10 +10,11 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # load packages
 library(pacman)
-pacman::p_load(tidyverse, dplyr, ggplot2, ggpubr,car, scales)
+pacman::p_load(tidyverse, dplyr, ggplot2, ggpubr, car, scales)
 ```
 
 ```{r}
+##################### change working repository ########################
 # set working directory
 setwd("D:/Skole/CogSci/DataSci")
 getwd()
@@ -175,8 +176,8 @@ shapiro.test(df_calls_quar$nb_calls) # non-significantly different from Norm-dis
 
 ###################### analysis #########################
 # performing t-test for calls vs applications
-t.test(df_calls_quar$nb_apps, df_calls_quar$nb_calls, var.equal = F) # non-homoscedastic
-wilcox.test(df_calls_quar$nb_apps, df_calls_quar$nb_calls) # non-linear
+t.test(df_calls_quar$nb_apps, df_calls_quar$nb_calls, var.equal = F, paired = T) # non-homoscedastic
+wilcox.test(df_calls_quar$nb_apps, df_calls_quar$nb_calls, paired = T) # non-linear
 ```
 
 
@@ -339,7 +340,7 @@ cor.test(df_one$FTE_adv, df_one$calls_one, method = "spearman")
 # financial costs and vacancy clicks #
 ### using the annual dataset since financial costs are not accessible for quarters ###
 ```{r, fig.width=8, fig.height=5}
-### preprocess ###
+############################ preprocess ############################
 # target rows
 target <- c("Financial costs converted to USD, calendar year (estimate)", "Vacancy clicks")
 
@@ -421,6 +422,82 @@ ggplot(residuals_df, aes(x = Predicted, y = Residuals)) +
 cor.test(df_fin$fin_cost, df_fin$vac_clicks, method = "pearson")
 cor.test(df_fin$fin_cost, df_fin$vac_clicks, method = "spearman")
 
+```
+
+# One-on-one FTE and AVG Usefulness #
+```{r}
+##################### preprocess ######################
+# target rows
+target <- c("Total core FTE direct only advising", "Average usefulness rating 1-7")
+
+# columns
+df_us <- df_quar %>%
+  select(matches("(Web and marketing|Q1 2021|Q2 2021|Q3 2021|Q4 2021|Q1 2022|Q2 2022|Q3 2022|Q4 2022)")) %>% 
+  rename("Type" = "Web and marketing") %>% 
+  filter(Type %in% target) %>% 
+  select(-Type) %>% 
+  t() %>% 
+  as.data.frame()
+
+# giving colnames
+colnames(df_us) <- c("FTE_adv", "avg_us")
+
+# making numeric
+df_us$FTE_adv<- as.numeric(df_us$FTE_adv)
+df_us$avg_us<- as.numeric(df_us$avg_us)
+
+# making year column
+df_us$year <- rownames(df_us)
+rownames(df_us) <- NULL
+
+#################### plotting ########################
+# plotting FTE advising only and Average usefulness
+ggplot(df_us, aes(FTE_adv, avg_us)) +
+  geom_jitter(shape = 16, color = "darkblue", size = 3, alpha = 0.6) +
+  geom_smooth(method = "lm", color = "darkorange", linetype = "dashed", size = 1) +
+  labs(x = "Total FTE Advising", y = "Average usefulness") +
+  ggtitle("Total FTE Advising vs. Average usefulness") +
+  theme(plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 12, face = "bold"))
+
+##################### testing assumptions ########################
+# summary statistics
+summary(df_uni)
+
+# qq-plots for normality
+qqnorm(df_us$FTE_adv, main = "QQ Plot of FTE_adv")
+qqline(df_us$FTE_adv, col = "darkorange")
+qqnorm(df_us$avg_us, main = "QQ Plot of avg_us")
+qqline(df_us$avg_us, col = "darkorange")
+
+# normality test
+shapiro.test(df_us$FTE_adv) # does not violate normality
+shapiro.test(df_us$avg_us) # violates normality
+
+# homoscedasticity 
+model <- lm(avg_us ~ FTE_adv, data = df_us)
+
+# residual df
+residuals_df <- data.frame(
+  Predicted = fitted(model), 
+  Residuals = residuals(model))
+
+# plotting residuals vs predicted values
+ggplot(residuals_df, aes(x = Predicted, y = Residuals)) +
+  geom_point(shape = 16, color = "darkblue", size = 3, alpha = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "darkorange") +
+  labs(x = "Predicted Values", y = "Residuals") +
+  ggtitle("Residuals vs. Predicted Values") +
+  theme_classic() +
+  theme(plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 12, face = "bold"))
+
+############################ analysis #######################
+# performing pearson and spearman corr-test
+cor.test(df_us$FTE_adv, df_us$avg_us, method = "pearson")
+cor.test(df_us$FTE_adv, df_us$avg_us, method = "spearman")
 ```
 
 
